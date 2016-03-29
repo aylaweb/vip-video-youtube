@@ -1,0 +1,561 @@
+<!--
+Copyright (c) 2016 The Ayla Project Authors.
+This code may only be used under the MIT style license found at http://aylaweb.github.io/LICENSE.txt
+The complete set of authors may be found at http://aylaweb.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://aylaweb.github.io/CONTRIBUTORS.txt
+-->
+
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="../paper-styles/paper-styles.html">
+<link rel="import" href="../vip-resize-sensor-behavior/vip-resize-sensor-behavior.html">
+<link rel="import" href="../vip-onoff-behavior/vip-onoff-behavior.html">
+<link rel="import" href="../vip-anima-behavior/vip-anima-behavior.html">
+<link rel="import" href="../google-apis/google-youtube-api.html">
+
+<dom-module id="vip-video-youtube">
+    <style>
+        /* Web Component Flex container */
+        :host{
+            overflow: hidden;
+            position: relative;
+            @apply(--layout-vertical);
+            @apply(--layout-flex);
+            @apply(--vip-video-youtube);
+        }
+        /* Fills the space provided by Flex for this element in its base layout
+           Leaves a padding of 8px so that the shadow has space to be shown in case 
+           the video fills the space to the border*/
+        #container{
+            position: relative;
+            @apply(--layout-vertical);
+            @apply(--layout-flex);
+            @apply(--vip-video-youtube-container);
+        }
+
+
+        /* Its size is driven by the maximum video size in the space provided by container
+        It allows to apply animations to the content projected over the canvas */
+        #container_video{
+            position: relative;
+
+        }
+
+        /* Its size is driven by the maximum video size in the space provided by container
+        Canvas Program size driven */
+        #video_youtube {
+
+        }
+
+    </style>
+    <template id="template_video_youtube">
+        <google-youtube-api on-api-load="_apiLoad"></google-youtube-api>
+        <div id="container">
+            <paper-material elevation = 3>
+                <div id="container_video">
+                    <div id="{{videoId}}"></div>                            
+                </div>
+            </paper-material>
+        </div>
+        <content select="*"></content>
+    </template>
+    <script>
+        Polymer({
+            is: 'vip-video-youtube',
+            properties: {
+                // Reactive State Properties. 
+                /**
+                 * State property. Shows whether the playing process has ended or not
+                 *
+                 * @attribute ended
+                 * @type boolean
+                 * @default false
+                 */
+                ended: {
+                    type: Boolean,
+                    value: false,
+                    notify: true
+                },
+                /**
+                 * State property. Shows whether the player is reproducing the media
+                 * Note: if the player is buffering or waiting or in any other state that stops reproduction
+                 * the property will be false
+                 *
+                 * @attribute playing
+                 * @type boolean
+                 * @default false
+                 */
+                playing: {
+                    type: Boolean,
+                    value: false,
+                    notify: true
+                },
+                /**
+                 * State property. Shows whether the player is set to reproduce or it is paused
+                 * HTML5 video event driven
+                 *
+                 * @attribute paused
+                 * @type boolean
+                 * @default true
+                 */
+                paused: {
+                    type: Boolean,
+                    value: true,
+                    notify: true
+
+                },
+                /**
+                 * State property. Shows whether the player is muted
+                 * the property will be false
+                 *
+                 * @attribute muted
+                 * @type boolean
+                 * @default false
+                 */
+                muted: {
+                    type: Boolean,
+                    value: false,
+                    notify: true
+                },
+                /**
+                 * State property. Shows the volume of the player
+                 *
+                 * @attribute volume
+                 * @type float
+                 * @default false
+                 */
+                currentVolume: {
+                    type: Number,
+                    value: 0,
+                    notify: true
+                },
+                /**
+                 * State property. Reflects the current time of the reproduction of the video.
+                 * State property
+                 * HTML5 video event driven
+                 *
+                 * @attribute currentTime
+                 * @type float
+                 * @default 0
+                 */
+                currentTime: {
+                    type: Number,
+                    value: 0,
+                    observer: '_currentTimeChanged'
+                },
+                /**
+                 * Reflects an external change to the normal progress of the timeline of the video.
+                 * State property. Used to change currenttime externally.
+                 * _currenttimeChanged driven
+                 *
+                 * @attribute currentTimeNotify
+                 * @type float
+                 * @default 0
+                 */
+                currentTimeNotify: {
+                    type: Number,
+                    value: 0,
+                    notify: true
+                },
+                newCurrentTime: {
+                    type: Number,
+                    notify: true,
+                    observer: '_newCurrentTimeChanged'
+                },
+                /**
+                 * Info Property. Reflects the duration of the video. It takes into account the values of
+                 * the properties starttime and endtime.
+                 * State property
+                 * HTML5 video event driven
+                 *
+                 * @attribute duration
+                 * @type float
+                 * @default 0
+                 */
+                duration: {
+                    type: Number,
+                    value: 0,
+                    notify: true
+                },
+                /**
+                 * Specifies that video controls should be displayed (such as a 
+                 * play/pause button etc).
+                 *
+                 * @attribute controls
+                 * @type boolean
+                 * @default false
+                 */
+                controls: {
+                    type: Boolean
+                },
+                /**
+                 * Specifies that the video should start playing automatically.
+                 *
+                 * @attribute autoplay
+                 * @type boolean
+                 * @default false
+                 */
+                autoplay: {
+                    type: Boolean
+                },
+                /**
+                 * Specifies that the video will start over again, 
+                 * every time it is finished
+                 *
+                 * @attribute loop
+                 * @type boolean
+                 * @default false
+                 */
+                loop: {
+                    type: Boolean
+                },
+                /**
+                 * Specifies that the time that the video should start
+                 *
+                 * @attribute starttime
+                 * @type integer
+                 * @default 0
+                 */
+                startTime: {
+                    type: Number,
+                    value: 0
+                },
+                /**
+                 * Specifies that the time that the video should end. The value 0
+                 * indicates that the endtime is set to the video duration
+                 *
+                 * @attribute endtime
+                 * @type integer
+                 * @default 0
+                 */
+                endTime: {
+                    type: Number,
+                    value: 0
+                },
+                videoId: {
+                    type: String
+                },
+                /**
+                 * Specifies the id of the video file
+                 *
+                 * @attribute vid
+                 * @type string
+                 * @default ''
+                 */
+                vid: {
+                    type: String
+                },
+                controlTimeline: {
+                    type: String,
+                    notify: true
+                },
+                controlOnOff: {
+                    type: String,
+                    notify: true
+                }
+            },
+            behaviors: [Ayla.VipResizeSensor,
+                Ayla.VipSeekTimeBehavior, Ayla.VipOnOffBehavior],
+            listeners: {
+                'resize': '_resizeHandler'
+            },
+            hostAttributes: {
+                draggable: {
+                    type: Boolean,
+                    value: true
+                }
+            },
+            created: function () {
+                console.log(this.id + " -> vip-video-youtube -> Event created");
+                this._media = null;
+                this.videoInterval = 0;
+            },
+            attached: function () {
+                console.log(this.id + " -> vip-video-youtube -> Event attached");
+                this.async(function () {
+                    this._resizeHandler();
+                    //  this.style.flex = "1 1 0px"
+                }.bind(this));
+            },
+            ready: function () {
+                console.log(this.id + " -> vip-video-youtube -> Event ready");
+                this.currentTimeNotify = 0;
+                this._media = null;
+                //  this.async(this._innerRule.bind(this));
+                //  this.async(this._resize.bind(this));
+            },
+            /*   _innerRule: function () {
+             var ruleControlTimeline = {};
+             ruleControlTimeline.when = "controlTimeline$.currentTimeNotify";
+             ruleControlTimeline.then = "newCurrentTime";
+             this.rules = this.rules || [];
+             this.push('rules', ruleControlTimeline);
+             var ruleControlOnOff = {};
+             ruleControlOnOff.when = "controlOnOff$.pressed";
+             ruleControlOnOff.do = "transducers.filter(x => x)";
+             ruleControlOnOff.then = "{this.togglePlay()}";
+             this.rules = this.rules || [];
+             this.push('rules', ruleControlOnOff);
+             }, */
+            detached: function () {
+                console.log(this.id + " -> vip-video-youtube -> Event detached");
+                //clearInterval(this.videoInterval);
+                //this.videoInterval = 0;
+            },
+            /*  _onIronResize: function () {
+             this.resize();
+             }, */
+            /*   _resize: function (e) {
+             this.debounce("resize", this.__resize);
+             }, */
+            _resizeHandler: function (e) {
+                //  Polymer.dom.flush();
+                var height = this.$.container.offsetHeight;
+                var width = height * (16 / 9);
+                if (width < this.$.container.offsetWidth)
+                {
+                    Polymer.dom(this.root).querySelector('#' + this.videoId).height = height + "px";
+                    Polymer.dom(this.root).querySelector('#' + this.videoId).width = width + "px";
+                    /*this.$.container_video.height = height;
+                     this.$.container_video.width = width;
+                     this.$.container_limit.style.height = height + "px";
+                     this.$.container_limit.style.width = width + "px"; */
+                    Polymer.dom(this.root).querySelector('paper-material').style.height = height + "px";
+                    Polymer.dom(this.root).querySelector('paper-material').style.width = width + "px";
+                }
+                else {
+                    width = this.$.container.offsetWidth;
+                    height = width / (16 / 9);
+                    Polymer.dom(this.root).querySelector('#' + this.videoId).width = width + "px";
+                    Polymer.dom(this.root).querySelector('#' + this.videoId).height = height + "px";
+                    /*this.$.container_video.width = width;
+                     this.$.container_video.height = height;
+                     this.$.container_limit.style.width = width + "px";
+                     this.$.container_limit.style.height = height + "px"; */
+                    Polymer.dom(this.root).querySelector('paper-material').style.width = width + "px";
+                    Polymer.dom(this.root).querySelector('paper-material').style.height = height + "px";
+                }
+
+
+            },
+            _apiLoad: function () {
+                console.log(this.id + " -> Event ApiLoad");
+                this._media = new YT.Player(Polymer.dom(this.root).querySelector('#' + this.videoId),
+                        {
+                            playerVars: {
+                                'controls': (this.controls === true) ? 1 : 0,
+                                'autoplay': (this.autoplay === true) ? 1 : 0, //Can't see why is not working
+                                'loop': (this.loop === true) ? 1 : 0,
+                                'showinfo': 0,
+                                'vq': 'hd1080'
+                            },
+                            videoId: this.vid,
+                            events: {
+                                'onStateChange': this._onstatechangeHandler.bind(this),
+                                'onReady': this._onreadyHandler.bind(this)
+
+                            }
+                        });
+                this._resizeHandler();
+            },
+            _onreadyHandler: function (e) {
+                console.log(this.id + " -> Event YT onReady");
+                if (!this.videoInterval)
+                    this.videoInterval = setInterval(this._updateProperties.bind(this), 500);
+                this._initializeVideoYoutube();
+                this._resizeHandler();
+
+            },
+            _initializeVideoYoutube: function () {
+                this._media.pauseVideo();
+                if (!this.startTime)
+                    this.startTime = 0;
+                this.endTime = (this.endTime) ? this.endTime : this._media.getDuration();
+                this.duration = this.endTime - this.startTime;
+
+                if (this.currentVolume !== undefined) {
+                    this.newVolume(this.currentVolume);
+                }
+                if (this.muted !== undefined) {
+                    this.newMuted(this.muted);
+                }
+                if (this.currentTime !== undefined) {
+                    this.setCurrentTime(this.currentTime + this.startTime);
+                    //   this.currentTimeNotify = this.currentTime + this.startTime;
+                }
+                if (this.startTime !== 0) {
+                    this.setCurrentTime(this.startTime);
+                    // this.currentTimeNotify = this.startTime;
+                }
+                if (this.autoplay) {
+                    this.play();
+                }
+            },
+            _onstatechangeHandler: function (e) {
+                console.log(this.id + " -> Event YT onStateChange" + " " + e.data);
+                this._stateUpdate();
+            },
+            /*   _ondragstartHandler: function (e) {
+             e.dataTransfer.setData("text", e.target.id);
+             Polymer.dom(Polymer.dom(this.root).childNodes[4].childNodes[1]).childNodes[1].childNodes[1].removeChild(Polymer.dom(Polymer.dom(this.root).childNodes[4].childNodes[1]).childNodes[1].childNodes[1].childNodes[1])
+             var insert = document.createElement('div');
+             insert.setAttribute(id, "video_youtube");
+             var beforeNode = this.$.containerVideo;
+             Polymer.dom(this.root).insertBefore(insert, beforeNode); 
+             
+             }, */
+            _updateProperties: function ()
+            {
+                if (this._media) {
+                    // console.log("_updateProperties" + this.id);
+                    this.currentTime = this._media.getCurrentTime() - this.startTime;
+                    if (this.currentTime >= this.duration) {
+                        this.pause();
+                        // Internal manipulation of the state property
+                        if (this.duration !== this._media.getDuration())
+                            this.ended = true;
+                    }
+                    this.currentVolume = this._media.getVolume() / 100;
+                    this.muted = this._media.isMuted();
+                    this._stateUpdate();
+                }
+            },
+            _stateUpdate: function () {
+                var state = this._media.getPlayerState();
+                switch (state) {
+                    case YT.PlayerState.UNSTARTED:
+                        // this.setCurrentTime(this.currentTime + this.startTime);
+                        /*    if (!this.autoplay)
+                         this._media.pauseVideo(); //This should be done by autoplay */
+                        this.playing = false;
+                        this.autoplay = false;
+                        break;
+                    case YT.PlayerState.ENDED:
+                        this.ended = true;
+                        this.playing = false;
+                        this.paused = true;
+                        break;
+                    case YT.PlayerState.PLAYING:
+                        this.ended = false;
+                        this.playing = true;
+                        this.paused = false;
+                        break;
+                    case YT.PlayerState.PAUSED:
+                        if (this._media.getPlayerState() === YT.PlayerState.PAUSED) {
+                            this.playing = false;
+                        }
+                        this.paused = true;
+                        break;
+                    case YT.PlayerState.CUED:
+                        break;
+                    case YT.PlayerState.BUFFERING:
+                        this.playing = false;
+                        break;
+                    default:
+                }
+            },
+            // Action that starts playing the video
+            play: function () {
+                if (this._media) {
+                    this._media.playVideo();
+                    this.paused = false;
+                }
+            },
+            // Action that pauses playing the video         
+            pause: function () {
+                if (this._media)
+                {
+                    this._media.pauseVideo();
+                    this.paused = true;
+                }
+            },
+            end: function () {
+                if (this._media) {
+                    this._media.seekTo(this.endTime);
+                    if (this.endTime !== this._media.duration) {
+                        this.pause();
+                        this.ended = true;
+                    }
+                }
+            },
+            stop: function () {
+                if (this._media) {
+                    this._media.stopVideo();
+                    this.paused = true;
+                }
+            },
+            // Reaction that toggle the actions of play and pause        
+            togglePlay: function () {
+                if (this._media) {
+                    if (this.paused)
+                        this.play();
+                    else
+                        this.pause();
+                }
+            },
+            isMuted: function () {
+                return (this._media.isMuted());
+            },
+            isPaused: function () {
+                return ((this._media.getPlayerState() === YT.PlayerState.PAUSED) || (this._media.getPlayerState() === -1) || (this._media.getPlayerState() === YT.PlayerState.CUED));
+            },
+            newMuted: function (mute) {
+                if (mute)
+                    this._media.mute();
+                else
+                    this._media.unMute();
+            },
+            // Action that toggles the video muted state
+            toggleMute: function () {
+                if (this._media) {
+                    this._setMuted(!this._isMuted());
+                }
+            },
+            newVolume: function (volume) {
+                this._media.setVolume(volume);
+            },
+            setCurrentTime: function (time) {
+                if (time) {
+                    if (this._media.getPlayerState() === -1) {
+                        this._media.playVideo();
+                        this._media.pauseVideo();
+                    }
+                    if (!(this._media.getPlayerState() === -1)) {
+                        if (this._media.getPlayerState() === YT.PlayerState.CUED) {
+                            this._media.seekTo(time);
+                            this._media.pauseVideo();
+                        }
+                        else {
+                            this._media.seekTo(time);
+                        }
+                    }
+                }
+            },
+            _newCurrentTimeChanged: function (val, old) {
+                if (val >= 0) {
+                    this.setCurrentTime(val);
+                }
+            },
+            _currentTimeChanged: function (val, old) {
+                if (Math.abs(val - old) > 1) {
+                    if (this._media) {
+                        var state = this._media.getPlayerState();
+                        if (state == YT.PlayerState.PLAYING) {
+                            this.pause();
+                            //   clearInterval(this.videoInterval);
+                            this.setCurrentTime(this.startTime + val);
+                            this.play();
+                            this.videoInterval = setInterval(this._updateProperties.bind(this), 500);
+                        }
+                        else {
+                            this.setCurrentTime(this.startTime + val);
+                        }
+                        this.currentTimeNotify = this.currentTimeNotify++;
+                    }
+
+                }
+            }
+        });
+    </script>
+</dom-module>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+    <head>
+
+	<meta charset="UTF-8">
+	<title>Video Youtube</title>
+
+	<script src="../../webcomponentsjs/webcomponents.js"></script>
+        
+	<link rel="import" href="../vip-video-youtube.html">
+	<style>
+	    #vyoutube{
+		flex: 1 1 0;
+		position: relative;
+		
+	    }
+	</style>
+    </head>
+    <body fullbleed style="height:100vh;width:100vw; display: flex; flex-flow:row wrap; align-content: flex-start;">
+
+    <vip-video-youtube video-id="test" start-time="25"  id="vyoutube" vid="rGKfrgqWcv0" controls autoplay>
+    </vip-video-youtube>
+    <script>
+	var vyoutube = document.querySelector('#vyoutube');
+        
+    </script>
+</body>
+</html>
